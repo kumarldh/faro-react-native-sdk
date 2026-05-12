@@ -74,6 +74,14 @@ initializeFaro({
 });
 ```
 
+## Release source maps and `meta.app.bundleId` (Metro + Hermes)
+
+Use [`@grafana/faro-metro-plugin`](https://www.npmjs.com/package/@grafana/faro-metro-plugin) so release bundles prepend a small IIFE that assigns `globalThis['__faroBundleId_<appName>']` to your release id (typically `FARO_BUNDLE_ID` at bundle time). That id must match the segment in `POST …/app/{appId}/sourcemaps/{bundleId}` when maps are uploaded.
+
+You do **not** need `app.bundleId` in `initializeFaro`. `@grafana/faro-core` resolves `getBundleId(app.name)` during `registerInitialMetas` and merges **`meta.app.bundleId`** the same way as the Web SDK, as long as **`app.name` matches** the Metro plugin **`appName`**.
+
+For symbolicated Hermes stacks, set **`releaseBundleFilename`** in config to the bundle file basename used in the source map top-level `file` field (and the Metro plugin `sourceMapFile` if you override it), e.g. `index.android.bundle` vs `main.jsbundle`.
+
 ## Features
 
 ### Core Instrumentations
