@@ -1,0 +1,197 @@
+import { BaseInstrumentation } from '@grafana/faro-core';
+import { ErrorMechanism, primitiveUnhandledType } from './const';
+export { ErrorMechanism } from './const';
+import { enhanceErrorWithContext } from './stackTraceParser';
+/**
+ * Errors instrumentation for React Native
+ *
+ * Features:
+ * - Captures unhandled errors and promise rejections using ErrorUtils
+ * - Parses React Native stack traces (dev, release, Metro bundler formats)
+ * - Adds platform context (OS, version, Hermes engine)
+ * - Error deduplication to prevent duplicate reports
+ * - Configurable error filtering
+ *
+ * @example
+ * ```tsx
+ * import { ErrorsInstrumentation, initializeFaro } from '@grafana/faro-react-native';
+ *
+ * await initializeFaro({
+ *   // ...config
+ *   instrumentations: [
+ *     new ErrorsInstrumentation({
+ *       ignoreErrors: [/network timeout/i, /cancelled/i],
+ *       enableDeduplication: true,
+ *       deduplicationWindow: 5000,
+ *     }),
+ *   ],
+ * });
+ * ```
+ */
+export class ErrorsInstrumentation extends BaseInstrumentation {
+    constructor(options = {}) {
+        var _a, _b, _c, _d;
+        super();
+        this.name = '@grafana/faro-react-native-errors';
+        this.version = '1.0.0';
+        this.errorFingerprints = [];
+        this.options = {
+            ignoreErrors: (_a = options.ignoreErrors) !== null && _a !== void 0 ? _a : [],
+            enableDeduplication: (_b = options.enableDeduplication) !== null && _b !== void 0 ? _b : true,
+            deduplicationWindow: (_c = options.deduplicationWindow) !== null && _c !== void 0 ? _c : 5000,
+            maxDeduplicationEntries: (_d = options.maxDeduplicationEntries) !== null && _d !== void 0 ? _d : 50,
+            releaseBundleFilename: options.releaseBundleFilename,
+        };
+    }
+    initialize() {
+        // Capture unhandled JavaScript errors
+        this.setupGlobalErrorHandler();
+        // Capture unhandled promise rejections
+        this.setupUnhandledRejectionHandler();
+    }
+    setupGlobalErrorHandler() {
+        // Store the original error handler
+        this.originalErrorHandler = global.ErrorUtils.getGlobalHandler();
+        // Set our custom handler
+        global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+            try {
+                // Check if error should be ignored
+                if (this.shouldIgnoreError(error)) {
+                    return;
+                }
+                // Check for duplicate errors
+                if (this.options.enableDeduplication && this.isDuplicateError(error)) {
+                    return;
+                }
+                // Enhance error with React Native context and stack frames
+                const { error: enhancedError, stackFrames, context, } = enhanceErrorWithContext(error, {
+                    mechanism: ErrorMechanism.UNCAUGHT,
+                    isFatal: String(isFatal !== null && isFatal !== void 0 ? isFatal : false),
+                }, { releaseBundleFilename: this.options.releaseBundleFilename });
+                // Push error to Faro with enhanced data (type from error.name, matches Web SDK)
+                this.api.pushError(enhancedError, {
+                    type: enhancedError.name || 'Error',
+                    context,
+                    stackFrames,
+                });
+                // Track error fingerprint for deduplication
+                if (this.options.enableDeduplication) {
+                    this.addErrorFingerprint(error);
+                }
+            }
+            catch (_e) {
+                // Don't let error reporting cause more errors
+            }
+            finally {
+                // Always call the original handler to maintain normal error behavior
+                if (this.originalErrorHandler) {
+                    this.originalErrorHandler(error, isFatal);
+                }
+            }
+        });
+    }
+    setupUnhandledRejectionHandler() {
+        var _a;
+        // React Native supports the standard unhandledrejection event
+        this.unhandledRejectionListener = (event) => {
+            try {
+                const reason = event.reason;
+                // Convert reason to an Error if it isn't one (matches Web SDK approach)
+                const isPrimitiveRejection = !(reason instanceof Error);
+                let error;
+                if (reason instanceof Error) {
+                    error = reason;
+                }
+                else {
+                    error = new Error(`Unhandled Promise Rejection: ${typeof reason === 'object' ? JSON.stringify(reason) : String(reason)}`);
+                }
+                // Check if error should be ignored
+                if (this.shouldIgnoreError(error)) {
+                    return;
+                }
+                // Check for duplicate errors
+                if (this.options.enableDeduplication && this.isDuplicateError(error)) {
+                    return;
+                }
+                // Enhance error with React Native context and stack frames
+                const { error: enhancedError, stackFrames, context, } = enhanceErrorWithContext(error, {
+                    mechanism: ErrorMechanism.UNHANDLED_REJECTION,
+                }, { releaseBundleFilename: this.options.releaseBundleFilename });
+                // Type: use actual error type for Error objects; 'UnhandledRejection' for primitives (Web SDK)
+                const errorType = isPrimitiveRejection ? primitiveUnhandledType : enhancedError.name || 'Error';
+                this.api.pushError(enhancedError, {
+                    type: errorType,
+                    context,
+                    stackFrames,
+                });
+                // Track error fingerprint for deduplication
+                if (this.options.enableDeduplication) {
+                    this.addErrorFingerprint(error);
+                }
+            }
+            catch (_e) {
+                // Don't let error reporting cause more errors
+            }
+        };
+        // Add the listener
+        (_a = global.addEventListener) === null || _a === void 0 ? void 0 : _a.call(global, 'unhandledrejection', this.unhandledRejectionListener);
+    }
+    /**
+     * Check if error should be ignored based on ignoreErrors patterns
+     */
+    shouldIgnoreError(error) {
+        if (!error || !error.message) {
+            return false;
+        }
+        return this.options.ignoreErrors.some((pattern) => pattern.test(error.message));
+    }
+    /**
+     * Check if error is a duplicate based on message and stack
+     */
+    isDuplicateError(error) {
+        const message = error.message || '';
+        const stack = error.stack || '';
+        const now = Date.now();
+        // Clean up old entries first
+        this.cleanupOldFingerprints(now);
+        // Check if we've seen this error recently
+        return this.errorFingerprints.some((fingerprint) => {
+            return (fingerprint.message === message &&
+                fingerprint.stack === stack &&
+                now - fingerprint.timestamp < this.options.deduplicationWindow);
+        });
+    }
+    /**
+     * Add error fingerprint for deduplication tracking
+     */
+    addErrorFingerprint(error) {
+        const message = error.message || '';
+        const stack = error.stack || '';
+        const timestamp = Date.now();
+        this.errorFingerprints.push({ message, stack, timestamp });
+        // Limit the number of tracked fingerprints
+        if (this.errorFingerprints.length > this.options.maxDeduplicationEntries) {
+            this.errorFingerprints.shift();
+        }
+    }
+    /**
+     * Remove error fingerprints older than the deduplication window
+     */
+    cleanupOldFingerprints(now) {
+        this.errorFingerprints = this.errorFingerprints.filter((fingerprint) => now - fingerprint.timestamp < this.options.deduplicationWindow);
+    }
+    unpatch() {
+        var _a;
+        // Restore original error handler
+        if (this.originalErrorHandler) {
+            global.ErrorUtils.setGlobalHandler(this.originalErrorHandler);
+        }
+        // Remove unhandled rejection listener
+        if (this.unhandledRejectionListener) {
+            (_a = global.removeEventListener) === null || _a === void 0 ? void 0 : _a.call(global, 'unhandledrejection', this.unhandledRejectionListener);
+        }
+        // Clear deduplication tracking
+        this.errorFingerprints = [];
+    }
+}
+//# sourceMappingURL=index.js.map

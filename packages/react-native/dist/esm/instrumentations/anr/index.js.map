@@ -1,0 +1,1 @@
+{"version":3,"file":"index.js","sourceRoot":"","sources":["../../../../src/instrumentations/anr/index.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,kBAAkB,EAAE,MAAM,mBAAmB,CAAC","sourcesContent":["export { ANRInstrumentation } from './instrumentation';\nexport type { ANREvent, ANRInstrumentationOptions } from './types';\n"]}

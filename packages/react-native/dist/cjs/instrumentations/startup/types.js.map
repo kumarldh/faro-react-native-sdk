@@ -1,0 +1,1 @@
+{"version":3,"file":"types.js","sourceRoot":"","sources":["../../../../src/instrumentations/startup/types.ts"],"names":[],"mappings":"","sourcesContent":["/**\n * Configuration options for StartupInstrumentation\n */\nexport interface StartupInstrumentationOptions {\n  /**\n   * Enable startup timing measurement\n   * @default true\n   */\n  enabled?: boolean;\n}\n"]}

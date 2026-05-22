@@ -1,0 +1,14 @@
+export interface FetchTransportRequestOptions extends Omit<RequestInit, 'body' | 'headers'> {
+    headers?: Record<string, string>;
+}
+export interface FetchTransportOptions {
+    url: string;
+    apiKey?: string;
+    userKey?: string;
+    bufferSize?: number;
+    concurrency?: number;
+    defaultRateLimitBackoffMs?: number;
+    getNow?: ClockFn;
+    requestOptions?: FetchTransportRequestOptions;
+}
+export type ClockFn = () => number;

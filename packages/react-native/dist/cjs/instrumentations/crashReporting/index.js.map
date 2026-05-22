@@ -1,0 +1,1 @@
+{"version":3,"file":"index.js","sourceRoot":"","sources":["../../../../src/instrumentations/crashReporting/index.ts"],"names":[],"mappings":";;;AAAA,qDAAkE;AAAzD,gIAAA,6BAA6B,OAAA","sourcesContent":["export { CrashReportingInstrumentation } from './instrumentation';\nexport type { CrashReport, CrashReportingOptions } from './types';\n"]}

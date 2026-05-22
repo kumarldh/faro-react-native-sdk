@@ -1,0 +1,1 @@
+{"version":3,"file":"index.js","sourceRoot":"","sources":["../../../../src/instrumentations/frameMonitoring/index.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,8BAA8B,EAAE,MAAM,mBAAmB,CAAC","sourcesContent":["export { FrameMonitoringInstrumentation } from './instrumentation';\nexport type { FrameMetrics, FrameMonitoringOptions } from './types';\n"]}

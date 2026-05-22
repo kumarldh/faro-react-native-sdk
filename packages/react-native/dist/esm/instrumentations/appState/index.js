@@ -1,0 +1,103 @@
+import { AppState } from 'react-native';
+import { BaseInstrumentation, dateNow, VERSION } from '@grafana/faro-core';
+// Event name aligned with Faro Flutter SDK (app_lifecycle_changed)
+export const EVENT_APP_STATE_CHANGED = 'app_lifecycle_changed';
+/**
+ * AppState instrumentation for React Native
+ * Tracks app foreground/background/inactive state changes
+ *
+ * Emits `app_lifecycle_changed` with React Native `AppState` values in `fromState` / `toState`
+ * (active, background, inactive, unknown, extension).
+ */
+export class AppStateInstrumentation extends BaseInstrumentation {
+    constructor() {
+        super(...arguments);
+        this.name = '@grafana/faro-react-native:instrumentation-appstate';
+        this.version = VERSION;
+        /**
+         * Handles app state changes and emits app_lifecycle_changed events
+         * with native AppState status strings. Includes duration and timestamp for time-in-state analysis.
+         */
+        this.handleAppStateChange = (nextAppState) => {
+            const previousState = this.currentState;
+            const now = dateNow();
+            const duration = this.stateStartTime ? now - this.stateStartTime : 0;
+            // Update state tracking
+            this.currentState = nextAppState;
+            this.stateStartTime = now;
+            // Log the state change (internal debug keeps RN state names)
+            this.logDebug('App state changed', {
+                from: previousState,
+                to: nextAppState,
+                duration,
+            });
+            // Emit app lifecycle change event (native RN AppState values + duration/timestamp)
+            const fromState = previousState !== undefined ? previousState : '';
+            const toState = nextAppState;
+            this.api.pushEvent(EVENT_APP_STATE_CHANGED, {
+                fromState,
+                toState,
+                duration: duration.toString(),
+                timestamp: now.toString(),
+            }, undefined, { skipDedupe: true });
+            // Additional logging for specific transitions
+            if (nextAppState === 'background') {
+                this.logInfo('App moved to background', { fromState: previousState, duration });
+            }
+            else if (nextAppState === 'active' && previousState === 'background') {
+                this.logInfo('App returned to foreground', { duration });
+            }
+            else if (nextAppState === 'inactive') {
+                this.logDebug('App became inactive', { fromState: previousState });
+            }
+        };
+    }
+    initialize() {
+        // Get initial app state
+        this.currentState = AppState.currentState;
+        this.stateStartTime = dateNow();
+        this.logInfo('AppState instrumentation initialized', {
+            initialState: this.currentState,
+        });
+        // Subscribe to app state changes
+        this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+    }
+    /**
+     * Get the current app state
+     */
+    getCurrentState() {
+        return this.currentState;
+    }
+    /**
+     * Get the duration the app has been in the current state (in milliseconds)
+     */
+    getCurrentStateDuration() {
+        if (!this.stateStartTime) {
+            return 0;
+        }
+        return dateNow() - this.stateStartTime;
+    }
+    /**
+     * Check if app is currently in the foreground (active state)
+     */
+    isActive() {
+        return this.currentState === 'active';
+    }
+    /**
+     * Check if app is currently in the background
+     */
+    isBackground() {
+        return this.currentState === 'background';
+    }
+    /**
+     * Cleanup: Remove app state listener
+     */
+    unpatch() {
+        if (this.appStateSubscription) {
+            this.appStateSubscription.remove();
+            this.appStateSubscription = undefined;
+            this.logInfo('AppState instrumentation unpatched');
+        }
+    }
+}
+//# sourceMappingURL=index.js.map

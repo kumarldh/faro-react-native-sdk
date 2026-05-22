@@ -1,0 +1,2 @@
+export { AsyncStorageDataCollectionPolicy, createDataCollectionPolicy, getDataCollectionPolicy, initializeDataCollectionPolicy, setDataCollectionPolicy, } from './DataCollectionPolicy';
+//# sourceMappingURL=index.js.map
