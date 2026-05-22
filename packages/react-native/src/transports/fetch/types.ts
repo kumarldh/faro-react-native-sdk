@@ -8,6 +8,10 @@ export interface FetchTransportOptions {
 
   // will be added as `x-api-key` header
   apiKey?: string;
+
+  // Required header
+  userKey?: string;
+
   // how many requests to buffer in total
   bufferSize?: number;
   // how many requests to execute concurrently

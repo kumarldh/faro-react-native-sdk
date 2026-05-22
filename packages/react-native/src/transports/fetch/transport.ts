@@ -138,7 +138,7 @@ export class FetchTransport extends BaseTransport {
           }
         }
 
-        const { url, requestOptions, apiKey } = this.options;
+        const { url, requestOptions, apiKey, userKey } = this.options;
 
         const { headers, ...restOfRequestOptions } = requestOptions ?? {};
 
@@ -164,6 +164,7 @@ export class FetchTransport extends BaseTransport {
             'Content-Type': 'application/json',
             ...(headers ?? {}),
             ...(apiKey ? { 'x-api-key': apiKey } : {}),
+            ...(userKey ? { 'user_key': userKey } : {}),
             ...(sessionId ? { 'x-faro-session-id': sessionId } : {}),
           },
           body,
